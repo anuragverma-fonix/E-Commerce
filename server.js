@@ -4,10 +4,13 @@ const dbconnect = require('./config/dbconnect');
 const cors = require('cors');
 const helmet = require("helmet");
 const limit = require("express-rate-limit");
-const fileUpload = require("express-fileupload");
+// const fileUpload = require("express-fileupload");
 const http = require('http');
 const { Server } = require("socket.io");
 const Chat = require("./models/chat");
+const Message = require('./models/message');
+const swaggerJsDoc = require("swagger-jsdoc");
+const swaggerUi = require("swagger-ui-express");
 
 require("dotenv").config();
 
@@ -21,17 +24,16 @@ const routes = require('./routes/routes');
 
 //Middlewares
 app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 
 app.use(cp());
 
 app.use(cors({
     origin: "*",
-    credentials: true,
+    // credentials: true,
 }));
 
 app.use(helmet());
-
-app.use(express.urlencoded({extended:false}));
 
 // app.use(
 // 	fileUpload({
@@ -42,26 +44,59 @@ app.use(express.urlencoded({extended:false}));
 
 //Rate Limiting
 const limiter = limit({
-    windowsMs: 15 * 60 * 60 * 1000,
+    windowMs: 15 * 60 * 60 * 1000,
     max: 100,
     message: "Limit Reached"
 })
 
 //Routes
+// app.use(limiter);
 app.use('/api/v1', routes);
 
+//Swagger
+const swaggerOptions = {
+  definition: {
+    openapi: "3.0.0",
+    info: {
+      title: "E-Commerce API",
+      version: "1.0.0",
+      description: "API documentation for the E-Commerce platform",
+    },
+    servers: [
+      {
+        url: `http://localhost:${port}/api/v1`,
+      },
+    ],
+    components: {
+      securitySchemes: {
+        bearerAuth: {
+          type: "http",
+          scheme: "bearer",
+          bearerFormat: "JWT",
+        },
+      },
+    },
+    security: [{ bearerAuth: [] }],
+  },
+  apis: ["./routes/**/*.js"],
+};
 
-//Socket Logics
+const swaggerDocs = swaggerJsDoc(swaggerOptions);
+app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerDocs));
 
-// app.use("/api/notifications", notificationRoutes);
 
+//Socket Logic
 const server = http.createServer(app);
-
 const io = new Server(server, {
-  cors: { origin: "*", methods: ["GET", "POST", "PATCH", "DELETE"] }
+  cors: {
+    origin: "*",
+    // methods: ["GET", "POST"],
+    // credentials: true,
+  }
 });
 
-const onlineUsers = new Map();
+const activeUsers = new Map(); //onlineUsers
+// const onlineAdmins = new Map();
 
 io.on("connection", (socket) => {
 
@@ -69,11 +104,15 @@ io.on("connection", (socket) => {
 
   socket.on("join", (userId) => {
 
-    onlineUsers.set(userId, socket.id);
-    console.log("Online Users:", onlineUsers);
+    activeUsers.set(userId, socket.id); // Which Socket belongs to which User
+    console.log("Active Users:", activeUsers);
 
   });
 
+  // socket.on("joinAdmin", (adminId) => {
+  //   activeUsers.set(adminId, socket.id);
+  //   console.log("Admin connected:", adminId);
+  // });
 
   socket.on("sendMessage", async ({ chatId, senderId, receiverId, content }) => {
 
@@ -92,8 +131,9 @@ io.on("connection", (socket) => {
         { new: true }
       );
 
-      // 3. Emit to receiver if online
-      const receiverSocketId = onlineUsers.get(receiverId.toString());
+      // 3. Emit to receiver if online(map)
+      const receiverSocketId = activeUsers.get(receiverId.toString());
+      // const receiverSocketId = isAdmin ? onlineAdmins.get(receiverId.toString()) : activeUsers.get(receiverId.toString());
 
       if (receiverSocketId) {
         io.to(receiverSocketId).emit("receiveMessage", { chatId, message });
@@ -105,14 +145,18 @@ io.on("connection", (socket) => {
     } catch (err) {
       console.error("Send Message Error:", err);
     }
-  });
 
+  });
 
   socket.on("disconnect", () => {
 
-    onlineUsers.forEach((value, key) => {
-      if (value === socket.id) onlineUsers.delete(key);
+    activeUsers.forEach((value, key) => { //value = socket.id key=userId
+      if (value === socket.id) activeUsers.delete(key);
     });
+
+    // onlineAdmins.forEach((value, key) => {
+    //   if (value === socket.id) onlineAdmins.delete(key);
+    // });
 
     console.log("User disconnected:", socket.id);
 
@@ -122,11 +166,11 @@ io.on("connection", (socket) => {
 
 // Make io accessible in controllers
 app.set("io", io);
-app.set("onlineUsers", onlineUsers);
+app.set("onlineUsers", activeUsers);
 
 
 app.get('/', (req, res) => {
-    res.send('Hello World!');
+  res.send('Hello World!');
 });
 
 server.listen(port, () => console.log(`Server running on port ${port}`));

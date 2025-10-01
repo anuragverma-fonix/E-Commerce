@@ -5,7 +5,7 @@ const { response } = require('../../utils/response')
 const viewOrder = async (req, res) => {
     try {
         const { id } = req.params;
-        console.log(id);
+        // console.log(id);
 
         const schema = Joi.object({
             id: Joi.string().length(24).hex().required(), // MongoDB ObjectId validation

@@ -1,6 +1,7 @@
 const express = require("express");
 const router = express.Router();
 const multer = require('multer');
+const { getOrCreateChat } = require('../../utils/chat');
 
 //Middleware Imports
 const { auth } = require('../../middlewares/authMiddleware');
@@ -42,7 +43,8 @@ const profileUpload = multer({ storage: profileStorage, limits: { fileSize: 5 * 
 
 const {
   register,
-  login
+  login,
+  logout
 } = require("../../controllers/common/authController");
 
 const { 
@@ -55,9 +57,257 @@ const {
   getOrdersByUserId
 } = require('../../controllers/common/orderController');
 
+//Swagger
+
+/**
+ * @swagger
+ * tags:
+ *   - name: Auth
+ *     description: Authentication APIs
+ *   - name: Category
+ *     description: Category APIs
+ *   - name: Product
+ *     description: Product APIs
+ *   - name: Profile
+ *     description: Profile APIs
+ *   - name: Order
+ *     description: Order APIs
+ *   - name: Chat
+ *     description: Chat system APIs
+ */
+
+/**
+ * @swagger
+ * /register:
+ *   post:
+ *     summary: Register a new user
+ *     tags: [Auth]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         multipart/form-data:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               name:
+ *                 type: string
+ *               email:
+ *                 type: string
+ *               password:
+ *                 type: string
+ *               profileImage:
+ *                 type: string
+ *                 format: binary
+ *     responses:
+ *       200:
+ *         description: User registered successfully
+ */
+
+/**
+ * @swagger
+ * /login:
+ *   post:
+ *     summary: Login a user
+ *     tags: [Auth]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               email:
+ *                 type: string
+ *               password:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Login successful
+ */
+
+/**
+ * @swagger
+ * /get-all-categories:
+ *   get:
+ *     summary: Get all categories
+ *     tags: [Category]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: List of categories
+ */
+
+/**
+ * @swagger
+ * /get-category/{id}:
+ *   get:
+ *     summary: Get a single category by ID
+ *     tags: [Category]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - name: id
+ *         in: path
+ *         required: true
+ *         description: Category ID
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Category details
+ */
+
+/**
+ * @swagger
+ * /get-all-products:
+ *   get:
+ *     summary: Get all products
+ *     tags: [Product]
+ *     responses:
+ *       200:
+ *         description: List of products
+ */
+
+/**
+ * @swagger
+ * /get-product/{id}:
+ *   get:
+ *     summary: Get product by ID
+ *     tags: [Product]
+ *     parameters:
+ *       - name: id
+ *         in: path
+ *         required: true
+ *         description: Product ID
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Product details
+ */
+
+/**
+ * @swagger
+ * /profile:
+ *   get:
+ *     summary: Get logged-in user's profile
+ *     tags: [Profile]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: User profile
+ */
+
+/**
+ * @swagger
+ * /update-profile:
+ *   put:
+ *     summary: Update user profile
+ *     tags: [Profile]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: false
+ *       content:
+ *         multipart/form-data:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               name:
+ *                 type: string
+ *               email:
+ *                 type: string
+ *               profileImage:
+ *                 type: string
+ *                 format: binary
+ *     responses:
+ *       200:
+ *         description: Profile updated
+ */
+
+/**
+ * @swagger
+ * /change-password:
+ *   put:
+ *     summary: Change password
+ *     tags: [Profile]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               password:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Password changed
+ */
+
+/**
+ * @swagger
+ * /fetch-order/{id}:
+ *   get:
+ *     summary: Get a specific order
+ *     tags: [Order]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - name: id
+ *         in: path
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Order details
+ */
+
+/**
+ * @swagger
+ * /fetch-all-orders:
+ *   get:
+ *     summary: Get all orders of logged-in user
+ *     tags: [Order]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: List of orders
+ */
+
+/**
+ * @swagger
+ * /start:
+ *   post:
+ *     summary: Start a chat with an admin
+ *     tags: [Chat]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               adminId:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Chat created or retrieved
+ */
+
+
 //Auth APIs
 router.post('/register',profileUpload.single('profileImage'), register);
 router.post('/login', login);
+router.post('/logout', auth, logout);
 
 //Category APIs
 router.get("/get-all-categories", auth, getAllCategories);

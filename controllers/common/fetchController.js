@@ -11,8 +11,12 @@ const fetchProfile = async(req,res) => {
 
     try{
 
+        if (!req.user || !req.user.id) {
+            return response(res, 401, "Unauthorized: Please login first");
+        }
+
         const {id} = req.user;
-        // console.log(id)
+        console.log(id)
 
         const profile = await User.findById(id);
         // console.log(profile);

@@ -66,6 +66,9 @@ const userSchema = new mongoose.Schema({
     token: {
       type: String,
     },
+    tokenExpiresAt: {
+        type: Date,
+    }
 },
 {
     timestamps: {

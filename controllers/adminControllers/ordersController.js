@@ -52,7 +52,7 @@ const orderStatus = async(req,res) => {
     try{
 
         const io = req.app.get("io");
-        const onlineUsers = req.app.get("onlineUsers");
+        const activeUsers = req.app.get("onlineUsers");
 
         let page = Number(req.query.page) || 1;
         let limit = Number(req.query.limit) || 10;
@@ -76,72 +76,43 @@ const orderStatus = async(req,res) => {
             { status },
             {new : true}
         ).populate("user", "name email");
-        // .populate("products.product", "name price");
 
         if (!updatedOrder) {
             return response(res, 404, "Order not found");
         }
 
-        // order.status = status;
-        // await order.save();
+        const userSocketId = activeUsers.get(updatedOrder.user._id.toString());
 
-        let notificationData = null;
+        if (userSocketId) {
 
-        if (status === "Shipped") {
+            io.to(userSocketId).emit("orderStatusUpdated", {
 
-        notificationData = {
-
-            userId: order.user._id,
-            type: "OrderShipped",
-            title: "Order Shipped",
-            message: "Your order has been shipped. It will arrive soon!",
-
-        };
-        } else if (status === "Delivered") {
-
-            notificationData = {
-
-                userId: order.user._id,
-                type: "OrderDelivered",
-                title: "Order Delivered",
-                message: "Your order has been delivered successfully!",
-
-            };
-        } else if (status === "Cancelled") {
-
-            notificationData = {
-                userId: order.user._id,
-                type: "OrderCancelled",
-                title: "Order Cancelled",
-                message: "Your order has been cancelled.",
+                orderId: updatedOrder._id,
+                status: updatedOrder.status,
                 
-            };
+            });
         }
 
-        if (notificationData) {
-            await sendNotification(notificationData, io, onlineUsers);
-        }
-
-        // const skip = (page - 1) * limit;
-        // const filter = { user: order.user._id };
+        const skip = (page - 1) * limit;
+        const filter = { user: order.user._id };
         // console.log(order);
         // console.log(filter);
-        // const totalItems = await Order.countDocuments(filter);
+        const totalItems = await Order.countDocuments(filter);
         // console.log(totalItems);
-        // const totalPages = Math.ceil(totalItems / limit);
+        const totalPages = Math.ceil(totalItems / limit);
 
-        // const userOrders = await Order.find(filter)
-        //     .populate("user", "name email")
-        //     .skip(skip)
-        //     .limit(limit)
-        //     .sort({ createdAt: -1 });
+        const userOrders = await Order.find(filter)
+            .populate("user", "name email")
+            .skip(skip)
+            .limit(limit)
+            .sort({ createdAt: -1 });
         
         return response(res, 200, "Order Data Updated Successfully", {
             updatedOrder,
             // orders: userOrders,
             pagination: {
-                limit: limitNum,
-                page: pageNum,
+                limit: limit,
+                page: page,
                 total: totalItems,
                 totalPages
             }
@@ -211,17 +182,19 @@ const dashboardStats = async (req, res) => {
 
         // Total registered users
         const totalCustomers = await User.countDocuments();
+        // console.log(totalCustomers);
 
         //Total Products
         const totalProducts = await Product.countDocuments();
+        // console.log(totalProducts);
 
-        const recentProducts = await Product.find({})
+        const recentProducts = await Product.find()
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(limit)
         .select("name price createdAt");
 
-        const recentUsers = await User.find({})
+        const recentUsers = await User.find({ role: { $ne: "Admin" } })
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(limit)

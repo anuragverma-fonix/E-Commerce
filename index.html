@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Socket.IO Test</title>
+  <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+</head>
+<body>
+  <h1>Socket.IO Test Client</h1>
+
+  <label>User ID: <input type="text" id="userId" value="" /></label>
+  <button id="connectBtn">Connect</button>
+  <hr>
+
+  <h3>Send Message</h3>
+  <label>Chat ID: <input type="text" id="chatId" value="" /></label><br>
+  <label>Receiver ID: <input type="text" id="receiverId" value="" /></label><br>
+  <label>Message: <input type="text" id="message" value="Hello!" /></label><br>
+  <button id="sendMessageBtn">Send Message</button>
+  <hr>
+
+  <h3>Simulate Order</h3>
+  <label>Product ID: <input type="text" id="productId" value="" /></label><br>
+  <label>quantity: <input type="text" id="quantity" value="" /></label><br>
+  <label>Address: <input type="text" id="address" value="" /></label><br>
+  <button id="orderBtn">Place Order</button>
+
+  <hr>
+  <h3>Logs:</h3>
+  <pre id="logs"></pre>
+
+  <script>
+    let socket;
+    const logs = document.getElementById('logs');
+
+    function log(msg) {
+      console.log(msg);
+      logs.textContent += msg + "\n";
+    }
+
+    document.getElementById('connectBtn').addEventListener('click', () => {
+      const userId = document.getElementById('userId').value;
+      socket = io('http://localhost:5000');
+
+      socket.on('connect', () => {
+        log(`Connected as socket ${socket.id}`);
+        socket.emit('join', userId);
+      });
+
+      socket.on('receiveMessage', data => {
+        log(`Received message: ${JSON.stringify(data)}`);
+      });
+
+      socket.on('messageSent', data => {
+        log(`Message sent confirmation: ${JSON.stringify(data)}`);
+      });
+
+      socket.on("orderPlaced", (data) => {
+        console.log("Order placed notification:", data);
+      });
+
+      socket.on('orderNotification', data => {
+        log(`Admin order notification: ${JSON.stringify(data)}`);
+      });
+
+      socket.on('orderStatusUpdated', data => {
+        log(`Order status updated: ${JSON.stringify(data)}`);
+      });
+
+      socket.on('disconnect', () => {
+        log('Disconnected from server');
+      });
+    });
+
+    document.getElementById('sendMessageBtn').addEventListener('click', () => {
+      const chatId = document.getElementById('chatId').value;
+      const receiverId = document.getElementById('receiverId').value;
+      const content = document.getElementById('message').value;
+
+      socket.emit('sendMessage', { chatId, senderId: document.getElementById('userId').value, receiverId, content });
+    });
+
+    document.getElementById('orderBtn').addEventListener('click', () => {
+      const productId = document.getElementById('productId').value;
+      const quantity = document.getElementById('quantity').value;
+      const address = document.getElementById('address').value;
+
+      const token = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjY4ZDdjNDFiMWY5MGE5NGY4NTEwNjFhZiIsImVtYWlsIjoidHJ1ZWFkbWluQGdtYWlsLmNvbSIsInJvbGUiOiJBZG1pbiIsImlhdCI6MTc1OTMwOTgyOCwiZXhwIjoxNzU5MzE3MDI4fQ.64wBwfebwrSP4hQz6C9C7Rb-hWwkSKZwYwGWkM6Jr6w";
+
+      fetch('http://localhost:5000/api/v1/user/create-order', {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ productId, quantity, address })
+      })
+
+      socket.emit('orderPlaced', { productId, quantity, address });
+    });
+  </script>
+</body>
+</html>

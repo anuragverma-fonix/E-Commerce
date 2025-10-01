@@ -1,5 +1,6 @@
 const User = require("../../models/users");
 const Product = require("../../models/product");
+const { response } = require('../../utils/response');
 
 // Helper: Validate ObjectId
 // const isValidObjectId = (id) => mongoose.Types.ObjectId.isValid(id);
@@ -34,7 +35,7 @@ const getCart = async (req, res) => {
 const addToCart = async (req, res) => {
 
     const userId = req.user.id;
-    const { product_Id, quantity } = req.body;
+    const { product_Id, quantity = 1 } = req.body;
 
     // if (!isValidObjectId(userId) || !isValidObjectId(product_Id))
     //     return res.status(400).json({ message: "Invalid ID" });
@@ -47,24 +48,43 @@ const addToCart = async (req, res) => {
         const product = await Product.findById(product_Id);
         if (!product) return res.status(404).json({ message: "Product not found" });
 
-        const itemIndex = user.cart.findIndex(item => item.product_Id.toString() === product_Id);
+        if (product.quantity < quantity) {
+            return response(res, 400, "Insufficient stock available");
+        }
+
+        const itemIndex = user.cart.findIndex(item => item.product_Id.equals(product_Id));
 
         if (itemIndex > -1) {
 
-            user.cart[itemIndex].quantity += quantity || 1;
+            user.cart[itemIndex].quantity += Number(quantity);
+            user.cart[itemIndex].subtotal = user.cart[itemIndex].quantity * Number(product.price);
 
         } else {
-            user.cart.push({ product_Id, quantity: quantity || 1 });
+            user.cart.push(
+                { 
+                    product_Id, 
+                    quantity: quantity,
+                    subtotal: quantity * product.price,
+                }
+            );
         }
+
+        const total = user.cart.reduce((acc, item) => acc + item.subtotal, 0);
 
         await user.save();
 
-        res.json({ message: "Product added to cart", cart: user.cart });
+        return res.json(
+            { 
+                message: "Product added to cart", 
+                cart: user.cart,
+                total
+            }
+        );
 
     } catch (err) {
 
         console.log("addToCart error:", err);
-        res.status(500).json({ message: "Internal Server Error" });
+        return res.status(500).json({ message: "Internal Server Error" });
 
     }
 };
@@ -86,9 +106,16 @@ const updateCartItem = async (req, res) => {
 
         if (!user) return res.status(404).json({ message: "User not found" });
 
+        const product = await Product.findById(product_Id);
+        if (!product) return res.status(404).json({ message: "Product not found" });
+
         const itemIndex = user.cart.findIndex(item => item.product_Id.toString() === product_Id);
 
         if (itemIndex === -1) return res.status(404).json({ message: "Product not in cart" });
+
+        if (product.quantity < quantity) {
+            return response(res, 400, "Insufficient stock available");
+        }
 
         user.cart[itemIndex].quantity = quantity;
 

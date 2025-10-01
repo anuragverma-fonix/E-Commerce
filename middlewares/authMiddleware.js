@@ -1,5 +1,6 @@
 const { response } = require('../utils/response');
 const jwt = require('jsonwebtoken');
+const User = require('../models/users');
 
 require('dotenv').config();
 
@@ -7,21 +8,43 @@ const auth = async(req,res,next) => {
 
     try{
 
-        const token = req.cookies.token || req.header('Authorization').replace('Bearer ','').trim();
+        const token = req.cookies?.token || (req.header('Authorization')?.replace('Bearer ','').trim());
         // console.log(token);
 
         if(!token) {
 			return res.status(401).json({ success: false, message: `Token Missing` });
 		}
 
-        const decode = jwt.verify(token, process.env.JWT_SECRET);
+        let decode;
+        
+        try {
+            decode = jwt.verify(token, process.env.JWT_SECRET);
+        } catch (err) {
+
+        if (err.name === "TokenExpiredError") {
+            return response(res, 401, "Session expired, please login again");
+        }
+
+        return response(res, 401, "Unauthorized: Invalid token");
+
+        }
+
+        const user = await User.findById(decode.id);
+
+        if (!user || user.token !== token) {
+            return response(res, 401, "Unauthorized: Token is invalid or revoked");
+        }
+
+        if (user.tokenExpiresAt && user.tokenExpiresAt < new Date()) {
+            return response(res, 401, "Session expired, please login again");
+        }
 
         req.user = decode;
 
         next();
 
     }catch(error){
-
+        console.log("auth middleware error:", error);
         return response(res, 500, "Internal Server Error")
 
     }
@@ -50,6 +73,7 @@ const isAdmin = async(req,res,next) => {
         //     success: false,
         //     message: 'Internal Server Error'
         // })
+        console.log("isAdmin Middleware error:",e)
         return response(res, 500, 'Internal Server Error');
     }
 }

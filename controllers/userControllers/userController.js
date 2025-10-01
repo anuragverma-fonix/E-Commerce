@@ -2,7 +2,8 @@ const Product = require('../../models/product');
 const { response } = require('../../utils/response');
 const Joi = require("joi");
 const RatingReview = require('../../models/ratingReviews');
-
+const Order = require('../../models/order');
+const mongoose = require('mongoose')
 
 const createReview = async (req, res) => {
 
@@ -36,6 +37,16 @@ const createReview = async (req, res) => {
     const { error } = schema.validate({ pid, review });
 
     if (error) return response(res, 400, error.details[0].message);
+
+    const deliveredOrder = await Order.findOne({
+      user: id,
+      "products.product":pid, // assuming products is array of objects { productId, quantity, ... }
+      status: "Delivered",
+    });
+
+    if (!deliveredOrder) {
+      return response(res, 400, "You can review only products that you have purchased and delivered");
+    }
 
     // Ensure product exists
     const product = await Product.findById(pid);

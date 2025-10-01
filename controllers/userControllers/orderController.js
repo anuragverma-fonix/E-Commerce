@@ -2,14 +2,15 @@ const Order = require('../../models/order');
 const Product = require('../../models/product');
 const Joi = require("joi");
 const { response } = require('../../utils/response');
-const sendNotification = require("../../utils/notify");
+const Notification = require('../../models/notification');
 
 const placeOrder = async(req,res) => {
 
     try{
 
         const io = req.app.get("io");
-        const onlineUsers = req.app.get("onlineUsers");
+        const activeUsers = req.app.get("onlineUsers");
+        // console.log("Online Users Map:", Array.from(onlineUsers.entries()));
 
         const {id} = req.user;
         const { productId, quantity = 1, address } = req.body;
@@ -39,7 +40,7 @@ const placeOrder = async(req,res) => {
         product.quantity -= quantity;
         await product.save();
 
-        const newOrder = await Order.create({
+        const newOrder = await Order.create({ //userId
             user: id,
             products: {
                 product: product._id,
@@ -54,14 +55,30 @@ const placeOrder = async(req,res) => {
         });
         // console.log(newOrder);
 
-        await sendNotification({
-            userId: id,
+        await Notification.create({
+            user: id,
             type: "OrderPlaced",
             title: "Order Placed",
-            message: "Your order has been successfully placed!"
-        }, io, onlineUsers);
+            message: `Your order for "${product.name}" has been successfully placed!`,
+        });
 
-        // return response
+        const userSocketId = activeUsers.get(id.toString());
+
+        if (userSocketId) {
+
+            io.to(userSocketId).emit("orderPlaced", { order: newOrder });
+            console.log("Order notification sent to user:", userSocketId);
+
+        } else {
+            console.log("User is not connected via socket:", id);
+        }
+
+        // const adminSocketId = onlineUsers.get("adminId");
+        
+        // if (adminSocketId) {
+        //     io.to(adminSocketId).emit("orderNotification", { userId, orderId: newOrder._id, item: product.name });
+        // }
+        
         return response(res, 201, "Order placed successfully", newOrder);
 
     }catch(error){

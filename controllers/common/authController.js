@@ -72,6 +72,7 @@ const register = async(req,res) => {
         // console.log(token);
         
         newUser.token = token;
+        newUser.tokenExpiresAt = new Date(Date.now() + 1 * 24 * 60 * 60 * 1000);
         await newUser.save();
         newUser.password = undefined;
 
@@ -161,7 +162,35 @@ const login = async(req,res) => {
     }
 }
 
+const logout = async (req, res) => {
+
+  try {
+
+    const userId = req.user?.id;
+
+    if (!userId) {
+      return response(res, 401, "User not authenticated");
+    }
+
+    // Find user and clear the token field
+    await User.findByIdAndUpdate(userId, { $unset: { token: "", tokenExpiresAt: "" } });
+
+    // Clear the cookie
+    res.clearCookie("token", {
+      httpOnly: true,
+      sameSite: "strict",
+    });
+
+    return response(res, 200, "User logged out successfully");
+
+  } catch (error) {
+    console.log("logout error:", error);
+    return response(res, 500, "Internal Server Error");
+  }
+};
+
 module.exports = {
     register,
     login,
+    logout
 }

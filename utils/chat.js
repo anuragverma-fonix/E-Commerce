@@ -20,4 +20,6 @@ const getOrCreateChat = async (userId, adminId) => {
   return chat;
 };
 
-module.exports = getOrCreateChat;
+module.exports = {
+  getOrCreateChat
+}
